@@ -2,7 +2,9 @@ from flask import Flask, request, jsonify, redirect
 
 app = Flask(__name__)
 
+# -----------------------------
 # Estado dinámico del inversor
+# -----------------------------
 INVERTER_STATE = {
     "id": "inversor_1",
     "name": "Inversor Solar",
@@ -20,13 +22,16 @@ def authorize():
     state = request.args.get("state")
     if not redirect_uri:
         return "Falta redirect_uri", 400
+
     # Código de autorización ficticio
     code = "dummy-code"
+
     # Redirige a Google con code y state
     return redirect(f"{redirect_uri}?code={code}&state={state}")
 
 @app.route("/token", methods=["POST"])
 def token():
+    # Token ficticio
     return jsonify({
         "access_token": "dummy-access-token",
         "token_type": "Bearer",
@@ -38,14 +43,18 @@ def token():
 # -----------------------------
 @app.route("/", methods=["POST", "GET"])
 def main():
+    # Intent de debug: ver body recibido
     body = request.get_json(silent=True)
     print("BODY RECIBIDO:", body)
+
     if not body or "intent" not in body:
         return jsonify({"status": "ok", "message": "Función activa"}), 200
 
     intent = body["intent"]
 
-    # SYNC: devuelve los dispositivos
+    # -----------------------------
+    # SYNC: devuelve dispositivos
+    # -----------------------------
     if intent == "SYNC":
         response = {
             "requestId": body.get("requestId"),
@@ -69,7 +78,9 @@ def main():
         }
         return jsonify(response)
 
-    # QUERY: estado actual del dispositivo
+    # -----------------------------
+    # QUERY: devuelve estado del dispositivo
+    # -----------------------------
     elif intent == "QUERY":
         response = {
             "requestId": body.get("requestId"),
@@ -86,7 +97,9 @@ def main():
         }
         return jsonify(response)
 
+    # -----------------------------
     # EXECUTE: ejecutar comandos (simulado)
+    # -----------------------------
     elif intent == "EXECUTE":
         commands = body.get("commands", [])
         results = []
