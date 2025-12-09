@@ -1,18 +1,19 @@
-# Imagen base oficial de Python
+# Usa imagen base oficial de Python
 FROM python:3.13-slim
 
 # Directorio de trabajo
 WORKDIR /app
 
-# Copiar código y dependencias
+# Copia archivos
 COPY main.py requirements.txt ./
 
-# Instalar dependencias
-RUN pip install --no-cache-dir -r requirements.txt
+# Instala dependencias
+RUN pip install --no-cache-dir -r requirements.txt gunicorn flask
 
-# Puerto a exponer
+# Puerto que Cloud Run expone
 ENV PORT 8080
-EXPOSE 8080
 
-# Comando para Gunicorn (multi-thread, 4 workers)
-CMD exec gunicorn --bind :$PORT --workers 4 --threads 4 --timeout 300 main:app
+# Comando para ejecutar la app con gunicorn
+# -w 1: 1 worker (puede aumentar si necesitas más concurrencia)
+# -b 0.0.0.0:$PORT: escuchar en el puerto asignado por Cloud Run
+CMD ["gunicorn", "-w", "1", "-b", "0.0.0.0:8080", "main:app"]
