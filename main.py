@@ -11,6 +11,26 @@ INVERTER_STATE = {
     "voltage": 24.3
 }
 
+
+@app.route("/authorize")
+def authorize():
+    # Google enviará redirect_uri y state
+    redirect_uri = request.args.get("redirect_uri")
+    state = request.args.get("state")
+    # Código de autorización ficticio
+    code = "dummy-code"
+    # Redirige de vuelta a Google con code y state
+    return redirect(f"{redirect_uri}?code={code}&state={state}")
+
+
+@app.route("/token", methods=["POST"])
+def token():
+    return jsonify({
+        "access_token": "dummy-access-token",
+        "token_type": "Bearer",
+        "expires_in": 3600
+    })
+
 @app.route("/", methods=["POST", "GET"])
 def main():
     body = request.get_json(silent=True)
@@ -81,21 +101,4 @@ def main():
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
 
-@app.route("/authorize")
-def authorize():
-    # Google enviará redirect_uri y state
-    redirect_uri = request.args.get("redirect_uri")
-    state = request.args.get("state")
-    # Código de autorización ficticio
-    code = "dummy-code"
-    # Redirige de vuelta a Google con code y state
-    return redirect(f"{redirect_uri}?code={code}&state={state}")
 
-
-@app.route("/token", methods=["POST"])
-def token():
-    return jsonify({
-        "access_token": "dummy-access-token",
-        "token_type": "Bearer",
-        "expires_in": 3600
-    })
