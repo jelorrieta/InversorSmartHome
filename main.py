@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, redirect
 
 app = Flask(__name__)
 
-# Estado dinámico del inversor (puedes actualizarlo de otra fuente)
+# Estado dinámico del inversor
 INVERTER_STATE = {
     "id": "inversor_1",
     "name": "Inversor Solar",
@@ -11,17 +11,19 @@ INVERTER_STATE = {
     "voltage": 24.3
 }
 
-
+# -----------------------------
+# ENDPOINT PARA ACCOUNT LINKING
+# -----------------------------
 @app.route("/authorize")
 def authorize():
-    # Google enviará redirect_uri y state
     redirect_uri = request.args.get("redirect_uri")
     state = request.args.get("state")
+    if not redirect_uri:
+        return "Falta redirect_uri", 400
     # Código de autorización ficticio
     code = "dummy-code"
-    # Redirige de vuelta a Google con code y state
+    # Redirige a Google con code y state
     return redirect(f"{redirect_uri}?code={code}&state={state}")
-
 
 @app.route("/token", methods=["POST"])
 def token():
@@ -31,6 +33,9 @@ def token():
         "expires_in": 3600
     })
 
+# -----------------------------
+# ENDPOINT PRINCIPAL DE DISPOSITIVO
+# -----------------------------
 @app.route("/", methods=["POST", "GET"])
 def main():
     body = request.get_json(silent=True)
@@ -39,7 +44,7 @@ def main():
 
     intent = body["intent"]
 
-    # SYNC
+    # SYNC: devuelve los dispositivos
     if intent == "SYNC":
         response = {
             "requestId": body.get("requestId"),
@@ -63,7 +68,7 @@ def main():
         }
         return jsonify(response)
 
-    # QUERY
+    # QUERY: estado actual del dispositivo
     elif intent == "QUERY":
         response = {
             "requestId": body.get("requestId"),
@@ -80,7 +85,7 @@ def main():
         }
         return jsonify(response)
 
-    # EXECUTE
+    # EXECUTE: ejecutar comandos (simulado)
     elif intent == "EXECUTE":
         commands = body.get("commands", [])
         results = []
@@ -96,9 +101,12 @@ def main():
         response = {"requestId": body.get("requestId"), "payload": {"commands": results}}
         return jsonify(response)
 
+    # Intent desconocido
     return jsonify({"status": "error", "message": f"Intent desconocido: {intent}"}), 400
 
+# -----------------------------
+# EJECUCIÓN LOCAL (opcional)
+# -----------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
-
 
