@@ -22,13 +22,20 @@ def authorize():
     state = request.args.get("state")
     if not redirect_uri:
         return "Falta redirect_uri", 400
+
     # Código de autorización ficticio
     code = "dummy-code"
-    # Redirige a Google con code y state
+    user_id = "user-123"  # opcional: para identificar al usuario
     return redirect(f"{redirect_uri}?code={code}&state={state}")
 
 @app.route("/token", methods=["POST"])
 def token():
+    # Validación mínima de OAuth
+    grant_type = request.form.get("grant_type")
+    code = request.form.get("code")
+    if grant_type != "authorization_code" or not code:
+        return jsonify({"error": "invalid_request"}), 400
+
     return jsonify({
         "access_token": "dummy-access-token",
         "token_type": "Bearer",
@@ -46,14 +53,18 @@ def main():
     if not body:
         return jsonify({"status": "ok", "message": "Función activa"}), 200
 
-    # Google Home envía intents dentro de inputs
+    # Detecta el intent
     intent = None
     if "intent" in body:
         intent = body["intent"]
     elif "inputs" in body and len(body["inputs"]) > 0:
         intent = body["inputs"][0].get("intent")
 
+    print("Intent detectado:", intent)
+
+    # -----------------------------
     # SYNC
+    # -----------------------------
     if intent in ["SYNC", "action.devices.SYNC"]:
         response = {
             "requestId": body.get("requestId", "req-001"),
@@ -77,7 +88,9 @@ def main():
         }
         return jsonify(response)
 
+    # -----------------------------
     # QUERY
+    # -----------------------------
     elif intent in ["QUERY", "action.devices.QUERY"]:
         response = {
             "requestId": body.get("requestId", "req-002"),
@@ -94,7 +107,9 @@ def main():
         }
         return jsonify(response)
 
+    # -----------------------------
     # EXECUTE
+    # -----------------------------
     elif intent in ["EXECUTE", "action.devices.EXECUTE"]:
         commands = body.get("commands", []) or body.get("inputs", [{}])[0].get("payload", {}).get("commands", [])
         results = []
@@ -110,7 +125,9 @@ def main():
         response = {"requestId": body.get("requestId", "req-003"), "payload": {"commands": results}}
         return jsonify(response)
 
+    # -----------------------------
     # Intent desconocido
+    # -----------------------------
     return jsonify({"status": "error", "message": f"Intent desconocido: {intent}"}), 400
 
 # -----------------------------
@@ -118,4 +135,3 @@ def main():
 # -----------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
-
