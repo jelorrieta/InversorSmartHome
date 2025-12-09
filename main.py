@@ -1,26 +1,25 @@
-import functions_framework
-from flask import jsonify, request
+from flask import Flask, request, jsonify
 
-# Estado dinámico de tu inversor (puede venir de otra fuente)
+app = Flask(__name__)
+
+# Estado dinámico del inversor (puedes actualizarlo de otra fuente)
 INVERTER_STATE = {
     "id": "inversor_1",
     "name": "Inversor Solar",
     "online": True,
-    "power": 125,    # Valor dinámico
-    "voltage": 24.3  # Valor dinámico
+    "power": 125,
+    "voltage": 24.3
 }
 
-@functions_framework.http
-def main(request):
-    body = request.get_json()
+@app.route("/", methods=["POST", "GET"])
+def main():
+    body = request.get_json(silent=True)
     if not body or "intent" not in body:
-        return jsonify({"status": "error", "message": "No se recibió 'intent'"}), 400
+        return jsonify({"status": "ok", "message": "Función activa"}), 200
 
     intent = body["intent"]
 
-    # ------------------------
-    # SYNC → Google pide lista de dispositivos
-    # ------------------------
+    # SYNC
     if intent == "SYNC":
         response = {
             "requestId": body.get("requestId"),
@@ -29,12 +28,8 @@ def main(request):
                     {
                         "id": INVERTER_STATE["id"],
                         "type": "action.devices.types.ENERGY_SENSOR",
-                        "traits": [
-                            "action.devices.traits.EnergyStorage"
-                        ],
-                        "name": {
-                            "name": INVERTER_STATE["name"]
-                        },
+                        "traits": ["action.devices.traits.EnergyStorage"],
+                        "name": {"name": INVERTER_STATE["name"]},
                         "willReportState": False,
                         "deviceInfo": {
                             "manufacturer": "MiEmpresa",
@@ -48,9 +43,7 @@ def main(request):
         }
         return jsonify(response)
 
-    # ------------------------
-    # QUERY → Google pide estado actual
-    # ------------------------
+    # QUERY
     elif intent == "QUERY":
         response = {
             "requestId": body.get("requestId"),
@@ -67,11 +60,8 @@ def main(request):
         }
         return jsonify(response)
 
-    # ------------------------
-    # EXECUTE → Google envía comandos
-    # ------------------------
+    # EXECUTE
     elif intent == "EXECUTE":
-        # Aquí solo simulamos la ejecución
         commands = body.get("commands", [])
         results = []
         for cmd in commands:
@@ -83,13 +73,10 @@ def main(request):
                     "status": "SUCCESS",
                     "states": INVERTER_STATE
                 })
-        response = {
-            "requestId": body.get("requestId"),
-            "payload": {
-                "commands": results
-            }
-        }
+        response = {"requestId": body.get("requestId"), "payload": {"commands": results}}
         return jsonify(response)
 
-    else:
-        return jsonify({"status": "error", "message": f"Intent desconocido: {intent}"}), 400
+    return jsonify({"status": "error", "message": f"Intent desconocido: {intent}"}), 400
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8080)
