@@ -39,6 +39,7 @@ def token():
 @app.route("/", methods=["POST", "GET"])
 def main():
     body = request.get_json(silent=True)
+    print("BODY RECIBIDO:", body)
     if not body or "intent" not in body:
         return jsonify({"status": "ok", "message": "Función activa"}), 200
 
