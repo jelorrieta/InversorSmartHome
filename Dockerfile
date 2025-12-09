@@ -8,12 +8,12 @@ WORKDIR /app
 COPY main.py requirements.txt ./
 
 # Instala dependencias
-RUN pip install --no-cache-dir -r requirements.txt gunicorn flask
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Puerto que Cloud Run expone
 ENV PORT 8080
 
 # Comando para ejecutar la app con gunicorn
-# -w 1: 1 worker (puede aumentar si necesitas más concurrencia)
-# -b 0.0.0.0:$PORT: escuchar en el puerto asignado por Cloud Run
+# -w 1: un worker
+# -b 0.0.0.0:$PORT: escucha en el puerto que Cloud Run asigna
 CMD ["gunicorn", "-w", "1", "-b", "0.0.0.0:8080", "main:app"]
