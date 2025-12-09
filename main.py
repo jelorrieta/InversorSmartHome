@@ -22,16 +22,13 @@ def authorize():
     state = request.args.get("state")
     if not redirect_uri:
         return "Falta redirect_uri", 400
-
     # Código de autorización ficticio
     code = "dummy-code"
-
     # Redirige a Google con code y state
     return redirect(f"{redirect_uri}?code={code}&state={state}")
 
 @app.route("/token", methods=["POST"])
 def token():
-    # Token ficticio
     return jsonify({
         "access_token": "dummy-access-token",
         "token_type": "Bearer",
@@ -43,21 +40,23 @@ def token():
 # -----------------------------
 @app.route("/", methods=["POST", "GET"])
 def main():
-    # Intent de debug: ver body recibido
     body = request.get_json(silent=True)
     print("BODY RECIBIDO:", body)
 
-    if not body or "intent" not in body:
+    if not body:
         return jsonify({"status": "ok", "message": "Función activa"}), 200
 
-    intent = body["intent"]
+    # Google Home envía intents dentro de inputs
+    intent = None
+    if "intent" in body:
+        intent = body["intent"]
+    elif "inputs" in body and len(body["inputs"]) > 0:
+        intent = body["inputs"][0].get("intent")
 
-    # -----------------------------
-    # SYNC: devuelve dispositivos
-    # -----------------------------
-    if intent == "SYNC":
+    # SYNC
+    if intent in ["SYNC", "action.devices.SYNC"]:
         response = {
-            "requestId": body.get("requestId"),
+            "requestId": body.get("requestId", "req-001"),
             "payload": {
                 "devices": [
                     {
@@ -78,12 +77,10 @@ def main():
         }
         return jsonify(response)
 
-    # -----------------------------
-    # QUERY: devuelve estado del dispositivo
-    # -----------------------------
-    elif intent == "QUERY":
+    # QUERY
+    elif intent in ["QUERY", "action.devices.QUERY"]:
         response = {
-            "requestId": body.get("requestId"),
+            "requestId": body.get("requestId", "req-002"),
             "payload": {
                 "devices": {
                     INVERTER_STATE["id"]: {
@@ -97,22 +94,20 @@ def main():
         }
         return jsonify(response)
 
-    # -----------------------------
-    # EXECUTE: ejecutar comandos (simulado)
-    # -----------------------------
-    elif intent == "EXECUTE":
-        commands = body.get("commands", [])
+    # EXECUTE
+    elif intent in ["EXECUTE", "action.devices.EXECUTE"]:
+        commands = body.get("commands", []) or body.get("inputs", [{}])[0].get("payload", {}).get("commands", [])
         results = []
         for cmd in commands:
             devices = cmd.get("devices", [])
             for device in devices:
-                device_id = device["id"]
+                device_id = device.get("id")
                 results.append({
                     "ids": [device_id],
                     "status": "SUCCESS",
                     "states": INVERTER_STATE
                 })
-        response = {"requestId": body.get("requestId"), "payload": {"commands": results}}
+        response = {"requestId": body.get("requestId", "req-003"), "payload": {"commands": results}}
         return jsonify(response)
 
     # Intent desconocido
