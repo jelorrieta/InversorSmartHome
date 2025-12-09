@@ -1,10 +1,9 @@
+import os
 from flask import Flask, request, jsonify, redirect
 
 app = Flask(__name__)
 
-# -----------------------------
-# Estado dinámico del inversor
-# -----------------------------
+# Estado del inversor
 INVERTER_STATE = {
     "id": "inversor_1",
     "name": "Inversor Solar",
@@ -14,7 +13,7 @@ INVERTER_STATE = {
 }
 
 # -----------------------------
-# ENDPOINT PARA ACCOUNT LINKING
+# Account Linking (OAuth 2.0)
 # -----------------------------
 @app.route("/authorize")
 def authorize():
@@ -22,20 +21,11 @@ def authorize():
     state = request.args.get("state")
     if not redirect_uri:
         return "Falta redirect_uri", 400
-
-    # Código de autorización ficticio
     code = "dummy-code"
-    user_id = "user-123"  # opcional: para identificar al usuario
     return redirect(f"{redirect_uri}?code={code}&state={state}")
 
 @app.route("/token", methods=["POST"])
 def token():
-    # Validación mínima de OAuth
-    grant_type = request.form.get("grant_type")
-    code = request.form.get("code")
-    if grant_type != "authorization_code" or not code:
-        return jsonify({"error": "invalid_request"}), 400
-
     return jsonify({
         "access_token": "dummy-access-token",
         "token_type": "Bearer",
@@ -43,17 +33,16 @@ def token():
     })
 
 # -----------------------------
-# ENDPOINT PRINCIPAL DE DISPOSITIVO
+# Endpoint principal
 # -----------------------------
 @app.route("/", methods=["POST", "GET"])
-def main():
+def main_endpoint():
     body = request.get_json(silent=True)
     print("BODY RECIBIDO:", body)
 
     if not body:
         return jsonify({"status": "ok", "message": "Función activa"}), 200
 
-    # Detecta el intent
     intent = None
     if "intent" in body:
         intent = body["intent"]
@@ -62,11 +51,8 @@ def main():
 
     print("Intent detectado:", intent)
 
-    # -----------------------------
-    # SYNC
-    # -----------------------------
     if intent in ["SYNC", "action.devices.SYNC"]:
-        response = {
+        return jsonify({
             "requestId": body.get("requestId", "req-001"),
             "payload": {
                 "devices": [
@@ -85,14 +71,10 @@ def main():
                     }
                 ]
             }
-        }
-        return jsonify(response)
+        })
 
-    # -----------------------------
-    # QUERY
-    # -----------------------------
     elif intent in ["QUERY", "action.devices.QUERY"]:
-        response = {
+        return jsonify({
             "requestId": body.get("requestId", "req-002"),
             "payload": {
                 "devices": {
@@ -104,12 +86,8 @@ def main():
                     }
                 }
             }
-        }
-        return jsonify(response)
+        })
 
-    # -----------------------------
-    # EXECUTE
-    # -----------------------------
     elif intent in ["EXECUTE", "action.devices.EXECUTE"]:
         commands = body.get("commands", []) or body.get("inputs", [{}])[0].get("payload", {}).get("commands", [])
         results = []
@@ -122,16 +100,9 @@ def main():
                     "status": "SUCCESS",
                     "states": INVERTER_STATE
                 })
-        response = {"requestId": body.get("requestId", "req-003"), "payload": {"commands": results}}
-        return jsonify(response)
+        return jsonify({
+            "requestId": body.get("requestId", "req-003"),
+            "payload": {"commands": results}
+        })
 
-    # -----------------------------
-    # Intent desconocido
-    # -----------------------------
     return jsonify({"status": "error", "message": f"Intent desconocido: {intent}"}), 400
-
-# -----------------------------
-# EJECUCIÓN LOCAL (opcional)
-# -----------------------------
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
