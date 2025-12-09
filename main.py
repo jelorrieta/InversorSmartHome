@@ -1,24 +1,21 @@
 import os
-import logging
 from flask import Flask, request, jsonify, redirect
-
-# Configurar logging para Cloud Run
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Estado dinámico del inversor
+# -----------------------------
+# Estado del inversor (dummy)
+# -----------------------------
 INVERTER_STATE = {
     "id": "inversor_1",
     "name": "Inversor Solar",
     "online": True,
-    "power": 125,
-    "voltage": 24.3
+    "power": 125,      # vatios actuales
+    "voltage": 24.3    # voltaje actual
 }
 
 # -----------------------------
-# Account Linking (OAuth 2.0)
+# Account Linking (OAuth 2.0 Dummy)
 # -----------------------------
 @app.route("/authorize")
 def authorize():
@@ -28,12 +25,12 @@ def authorize():
         return "Falta redirect_uri", 400
     # Código de autorización ficticio
     code = "dummy-code"
-    logger.info(f"Redirigiendo a {redirect_uri} con code={code} y state={state}")
+    # Redirige a Google con code y state
     return redirect(f"{redirect_uri}?code={code}&state={state}")
 
 @app.route("/token", methods=["POST"])
 def token():
-    logger.info("Solicitud de token recibida")
+    # Intercambio code -> access_token dummy
     return jsonify({
         "access_token": "dummy-access-token",
         "token_type": "Bearer",
@@ -41,25 +38,22 @@ def token():
     })
 
 # -----------------------------
-# Endpoint principal
+# Endpoint principal C2C
 # -----------------------------
-@app.route("/", methods=["POST", "GET"])
-def main_endpoint():
+@app.route("/", methods=["POST"])
+def cloud_to_cloud():
     body = request.get_json(silent=True)
-    logger.info(f"BODY RECIBIDO: {body}")
+    print("BODY RECIBIDO:", body)
 
-    # Respuesta simple si no hay body
     if not body:
         return jsonify({"status": "ok", "message": "Función activa"}), 200
 
-    # Detectar intent
-    intent = None
-    if "intent" in body:
-        intent = body["intent"]
-    elif "inputs" in body and len(body["inputs"]) > 0:
-        intent = body["inputs"][0].get("intent")
+    inputs = body.get("inputs", [])
+    if len(inputs) == 0:
+        return jsonify({"status": "error", "message": "No hay inputs"}), 400
 
-    logger.info(f"Intent detectado: {intent}")
+    intent = inputs[0].get("intent")
+    print("Intent detectado:", intent)
 
     # -----------------------------
     # SYNC
@@ -68,6 +62,7 @@ def main_endpoint():
         response = {
             "requestId": body.get("requestId", "req-001"),
             "payload": {
+                "agentUserId": "user-123",  # ID de usuario ficticio
                 "devices": [
                     {
                         "id": INVERTER_STATE["id"],
@@ -91,18 +86,21 @@ def main_endpoint():
     # QUERY
     # -----------------------------
     elif intent in ["QUERY", "action.devices.QUERY"]:
+        devices_query = inputs[0].get("payload", {}).get("devices", [])
+        payload_devices = {}
+        for dev in devices_query:
+            dev_id = dev.get("id")
+            if dev_id == INVERTER_STATE["id"]:
+                payload_devices[dev_id] = {
+                    "online": INVERTER_STATE["online"],
+                    "status": "SUCCESS",
+                    "currentPower": INVERTER_STATE["power"],
+                    "voltage": INVERTER_STATE["voltage"]
+                }
+
         response = {
             "requestId": body.get("requestId", "req-002"),
-            "payload": {
-                "devices": {
-                    INVERTER_STATE["id"]: {
-                        "online": INVERTER_STATE["online"],
-                        "status": "SUCCESS",
-                        "currentPower": INVERTER_STATE["power"],
-                        "voltage": INVERTER_STATE["voltage"]
-                    }
-                }
-            }
+            "payload": {"devices": payload_devices}
         }
         return jsonify(response)
 
@@ -110,8 +108,7 @@ def main_endpoint():
     # EXECUTE
     # -----------------------------
     elif intent in ["EXECUTE", "action.devices.EXECUTE"]:
-        commands = body.get("commands", []) or \
-                   body.get("inputs", [{}])[0].get("payload", {}).get("commands", [])
+        commands = inputs[0].get("payload", {}).get("commands", [])
         results = []
         for cmd in commands:
             devices = cmd.get("devices", [])
@@ -129,7 +126,7 @@ def main_endpoint():
     return jsonify({"status": "error", "message": f"Intent desconocido: {intent}"}), 400
 
 # -----------------------------
-# Ejecutar localmente (opcional)
+# Ejecución local
 # -----------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
