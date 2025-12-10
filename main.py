@@ -1,31 +1,23 @@
-import os
-import random
-import time
 import threading
-from flask import Flask, request, jsonify, redirect
+import time
+import random
+from flask import Flask, jsonify, request, redirect
 
 app = Flask(__name__)
 
 # -----------------------------
-# Estado base del inversor
+# Estado dinámico del inversor
 # -----------------------------
-INVERTER_STATE = {
-    "id": "inversor_1",
-    "name": "Inversor Solar",
-    "online": True,
-    "currentPower": 0,
-    "voltage": 0
-}
+SENSOR_STATE = {"power": 0, "voltage": 0}
 
-# Función para actualizar datos aleatorios y mostrar en consola
+# Thread que genera datos aleatorios cada 10 segundos
 def sensor_loop():
     while True:
-        INVERTER_STATE["currentPower"] = round(random.uniform(100, 150), 1)
-        INVERTER_STATE["voltage"] = round(random.uniform(23.5, 25.0), 1)
-        print(f"[SENSOR] Power: {INVERTER_STATE['currentPower']} W, Voltage: {INVERTER_STATE['voltage']} V")
-        time.sleep(10)  # cada 10 segundos
+        SENSOR_STATE["power"] = round(random.uniform(100, 150), 1)
+        SENSOR_STATE["voltage"] = round(random.uniform(23.5, 24.7), 1)
+        print(f"[SENSOR] Power: {SENSOR_STATE['power']} W, Voltage: {SENSOR_STATE['voltage']} V")
+        time.sleep(10)
 
-# Lanzar hilo en segundo plano
 threading.Thread(target=sensor_loop, daemon=True).start()
 
 # -----------------------------
@@ -51,20 +43,16 @@ def token():
 # -----------------------------
 # Endpoint principal
 # -----------------------------
-@app.route("/", methods=["POST", "GET"])
+@app.route("/", methods=["POST"])
 def main_endpoint():
-    body = request.get_json(silent=True)
-    print("BODY RECIBIDO:", body)
-
-    if not body:
-        return jsonify({"status": "ok", "message": "Función activa"}), 200
-
+    body = request.get_json(silent=True) or {}
     intent = None
     if "intent" in body:
         intent = body["intent"]
     elif "inputs" in body and len(body["inputs"]) > 0:
         intent = body["inputs"][0].get("intent")
 
+    print("BODY RECIBIDO:", body)
     print("Intent detectado:", intent)
 
     # SYNC
@@ -74,10 +62,10 @@ def main_endpoint():
             "payload": {
                 "devices": [
                     {
-                        "id": INVERTER_STATE["id"],
+                        "id": "inversor_1",
                         "type": "action.devices.types.SENSOR",
                         "traits": ["action.devices.traits.EnergyStorage"],
-                        "name": {"name": INVERTER_STATE["name"]},
+                        "name": {"name": "Inversor Solar"},
                         "willReportState": False,
                         "deviceInfo": {
                             "manufacturer": "MiEmpresa",
@@ -92,20 +80,19 @@ def main_endpoint():
 
     # QUERY
     elif intent in ["QUERY", "action.devices.QUERY"]:
-        response = {
+        return jsonify({
             "requestId": body.get("requestId", "req-002"),
             "payload": {
                 "devices": {
-                    INVERTER_STATE["id"]: {
-                        "online": INVERTER_STATE["online"],
+                    "inversor_1": {
+                        "online": True,
                         "status": "SUCCESS",
-                        "currentPower": INVERTER_STATE["currentPower"],
-                        "voltage": INVERTER_STATE["voltage"]
+                        "currentPower": SENSOR_STATE["power"],
+                        "voltage": SENSOR_STATE["voltage"]
                     }
                 }
             }
-        }
-        return jsonify(response)
+        })
 
     # EXECUTE
     elif intent in ["EXECUTE", "action.devices.EXECUTE"]:
@@ -115,20 +102,22 @@ def main_endpoint():
             devices = cmd.get("devices", [])
             for device in devices:
                 device_id = device.get("id")
+                # Aquí puedes simular la ejecución de comandos
                 results.append({
                     "ids": [device_id],
                     "status": "SUCCESS",
-                    "states": INVERTER_STATE
+                    "states": SENSOR_STATE
                 })
         return jsonify({
             "requestId": body.get("requestId", "req-003"),
             "payload": {"commands": results}
         })
 
+    # Intent desconocido
     return jsonify({"status": "error", "message": f"Intent desconocido: {intent}"}), 400
 
 # -----------------------------
-# EJECUCIÓN LOCAL
+# EJECUCIÓN LOCAL OPCIONAL
 # -----------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
