@@ -1,44 +1,74 @@
-from flask import Flask, request, jsonify
-import requests
-import os
+from flask import Flask, request, jsonify, redirect
 import threading
 import time
 import random
 
 app = Flask(__name__)
 
-# Cache compartida con lock
-CACHE = {"power": None, "voltage": None}
+# -------------------------------------------------------------------
+# CACHE PARA DATOS DEL SENSOR
+# -------------------------------------------------------------------
+CACHE = {"power": 0.0, "voltage": 0.0}
 lock = threading.Lock()
 
-def read_sensor():
-    """Simula lectura del inversor."""
-    try:
-        # Aquí tu lectura real del RS485 / ESP32 / API interna:
-        power = round(random.uniform(100, 150), 1)     # Watts
-        voltage = round(random.uniform(23.5, 25.0), 1) # Volts
-
-        with lock:
-            CACHE["power"] = power
-            CACHE["voltage"] = voltage
-
-        print(f"[SENSOR] Power: {power} W, Voltage: {voltage} V")
-    except Exception as e:
-        print("Error leyendo sensor:", e)
-
-def background_loop():
-    """Lee los datos cada 10 segundos sin bloquear el main thread."""
+# -------------------------------------------------------------------
+# GENERADOR DE DATOS CADA 10s
+# -------------------------------------------------------------------
+def update_sensor_loop():
     while True:
-        read_sensor()
+        with lock:
+            CACHE["power"] = round(random.uniform(50, 500), 2)
+            CACHE["voltage"] = round(random.uniform(20, 30), 2)
+        print(f"[SENSOR] Power={CACHE['power']}W  Voltage={CACHE['voltage']}V")
         time.sleep(10)
 
-# Inicia hilo en segundo plano
-threading.Thread(target=background_loop, daemon=True).start()
+threading.Thread(target=update_sensor_loop, daemon=True).start()
 
-@app.route("/health")
-def health():
-    return "OK", 200
+# -------------------------------------------------------------------
+# 1) AUTHORIZATION ENDPOINT (OAuth 2.0)
+# Google manda al usuario aquí para login
+# -------------------------------------------------------------------
+@app.route("/authorize")
+def authorize():
+    client_id = request.args.get("client_id")
+    redirect_uri = request.args.get("redirect_uri")
+    state = request.args.get("state")
 
+    # Simula login exitoso
+    redirect_url = f"{redirect_uri}?code=12345&state={state}"
+    return redirect(redirect_url, code=302)
+
+# -------------------------------------------------------------------
+# 2) TOKEN ENDPOINT
+# Google intercambia "code" por tokens
+# -------------------------------------------------------------------
+@app.route("/token", methods=["POST"])
+def token():
+    grant_type = request.form.get("grant_type")
+
+    if grant_type == "authorization_code":
+        return jsonify({
+            "token_type": "bearer",
+            "access_token": "ACCESS_TOKEN_ABC",
+            "refresh_token": "REFRESH_TOKEN_ABC",
+            "expires_in": 3600
+        })
+
+    elif grant_type == "refresh_token":
+        return jsonify({
+            "token_type": "bearer",
+            "access_token": "ACCESS_TOKEN_REFRESHED",
+            "expires_in": 3600
+        })
+
+    else:
+        return jsonify({"error": "unsupported_grant_type"}), 400
+
+
+# -------------------------------------------------------------------
+# 3) ENDPOINT PRINCIPAL — HANDLER DE INTENTS
+# SYNC, QUERY, EXECUTE
+# -------------------------------------------------------------------
 @app.route("/", methods=["POST"])
 def root():
     body = request.get_json()
@@ -46,6 +76,9 @@ def root():
 
     intent = body["inputs"][0]["intent"]
 
+    # ---------------------------------------------------------------
+    # INTENT: SYNC
+    # ---------------------------------------------------------------
     if intent == "action.devices.SYNC":
         return jsonify({
             "requestId": body["requestId"],
@@ -55,39 +88,89 @@ def root():
                     {
                         "id": "inversor_1",
                         "type": "action.devices.types.SENSOR",
-                        "traits": ["action.devices.traits.EnergyStorage"],
+                        "traits": [
+                            # EnergyStorage está documentado, aunque Google Home
+                            # a veces no muestre datos. Es lo correcto para C2C.
+                            "action.devices.traits.EnergyStorage"
+                        ],
                         "name": {"name": "Inversor Solar"},
                         "willReportState": False,
                         "attributes": {
-                            "sensorStatesSupported": [
-                                {"name": "power", "numericValue": True},
-                                {"name": "voltage", "numericValue": True}
-                            ]
+                            "queryOnlyEnergyStorage": True,
+                            "energyStorageUnit": "KILOWATT_HOUR"
                         }
                     }
                 ]
             }
         })
 
+    # ---------------------------------------------------------------
+    # INTENT: QUERY
+    # Devuelve valores actuales del sensor
+    # ---------------------------------------------------------------
     elif intent == "action.devices.QUERY":
         with lock:
             power = CACHE["power"]
             voltage = CACHE["voltage"]
 
+        # EnergyStorage requiere "capacityRemaining"
         return jsonify({
             "requestId": body["requestId"],
             "payload": {
                 "devices": {
                     "inversor_1": {
-                        "power": power,
-                        "voltage": voltage
+                        "online": True,
+                        "capacityRemaining": [{
+                            "rawValue": power,
+                            "unit": "KILOWATT_HOUR"
+                        }],
+                        "capacityUntilFull": [{
+                            "rawValue": voltage,
+                            "unit": "KILOWATT_HOUR"
+                        }]
                     }
                 }
             }
         })
 
-    else:
-        return jsonify({"error": "intent no soportado"}), 400
+    # ---------------------------------------------------------------
+    # INTENT: EXECUTE
+    # Para comandos (aunque tu sensor no tiene comandos)
+    # ---------------------------------------------------------------
+    elif intent == "action.devices.EXECUTE":
+        commands = body["inputs"][0]["payload"]["commands"]
 
+        results = []
+
+        for cmd in commands:
+            for device in cmd["devices"]:
+                device_id = device["id"]
+                exec_cmd = cmd["execution"][0]["command"]
+
+                print(f"[EXECUTE] {device_id}  CMD={exec_cmd}")
+
+                # Respuesta estándar
+                results.append({
+                    "ids": [device_id],
+                    "status": "SUCCESS",
+                    "states": {
+                        "online": True
+                    }
+                })
+
+        return jsonify({
+            "requestId": body["requestId"],
+            "payload": {
+                "commands": results
+            }
+        })
+
+    else:
+        return jsonify({"error": f"Intent no soportado: {intent}"}), 400
+
+
+# -------------------------------------------------------------------
+# MAIN
+# -------------------------------------------------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
