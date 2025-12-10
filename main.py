@@ -89,7 +89,7 @@ def root():
                 "devices": [
                     {
                         "id": "inversor_1",
-                        "type": "action.devices.types.SWITCH",
+                        "type": "action.devices.types.LIGHT",
                         "traits": [
                             "action.devices.traits.OnOff"
                         ],
