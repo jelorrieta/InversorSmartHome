@@ -110,7 +110,7 @@ def root():
     # ---------------------------------------------------------------
     elif intent == "action.devices.QUERY":
         with lock:
-            temp = CACHE["power"] / 10      # conversión arbitraria
+            status = CACHE["status"]      # conversión arbitraria
             target = CACHE["voltage"]       # conversión arbitraria
 
         return jsonify({
@@ -118,7 +118,7 @@ def root():
             "payload": {
                 "devices": {
                     "inversor_1": {
-                        "on": True
+                        "on": status
                     }
                 }
             }
