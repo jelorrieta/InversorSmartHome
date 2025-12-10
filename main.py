@@ -3,6 +3,7 @@ import requests
 import os
 import threading
 import time
+import random
 
 app = Flask(__name__)
 
@@ -14,8 +15,8 @@ def read_sensor():
     """Simula lectura del inversor."""
     try:
         # Aquí tu lectura real del RS485 / ESP32 / API interna:
-        power = 120.5
-        voltage = 24.3
+        power = round(random.uniform(100, 150), 1)     # Watts
+        voltage = round(random.uniform(23.5, 25.0), 1) # Volts
 
         with lock:
             CACHE["power"] = power
