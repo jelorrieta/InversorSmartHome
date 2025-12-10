@@ -1,17 +1,11 @@
-# Imagen base oficial de Python
-FROM python:3.13-slim
+FROM python:3.11-slim
 
-# Directorio de trabajo
 WORKDIR /app
 
-# Copia archivos
-COPY main.py requirements.txt ./
-
-# Instala dependencias
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Puerto que Cloud Run expone
-ENV PORT 8080
+COPY . .
 
-# Comando para ejecutar la app con gunicorn (1 worker, hilos, timeout extendido)
-CMD ["gunicorn", "-w", "1", "-k", "gthread", "-t", "300", "-b", "0.0.0.0:8080", "main:app"]
+# Gunicorn con 1 worker y timeout alto
+CMD ["gunicorn", "-b", "0.0.0.0:8080", "--workers", "1", "--threads", "1", "--timeout", "120", "main:app"]
