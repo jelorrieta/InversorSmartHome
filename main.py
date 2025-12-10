@@ -1,9 +1,12 @@
 import os
 import random
+import threading
+import time
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
+# Estado del inversor
 INVERTER_STATE = {
     "id": "inversor_1",
     "name": "Inversor Solar",
@@ -12,10 +15,22 @@ INVERTER_STATE = {
     "voltage": 0
 }
 
-def update_sensor():
-    INVERTER_STATE["power"] = round(random.uniform(100, 150), 1)
-    INVERTER_STATE["voltage"] = round(random.uniform(23.5, 24.5), 1)
+# -------------------------
+# Función para actualizar valores cada 10 segundos
+# -------------------------
+def sensor_loop():
+    while True:
+        INVERTER_STATE["power"] = round(random.uniform(100, 150), 1)
+        INVERTER_STATE["voltage"] = round(random.uniform(23.5, 24.5), 1)
+        print(f"[SENSOR] Power: {INVERTER_STATE['power']} W, Voltage: {INVERTER_STATE['voltage']} V")
+        time.sleep(10)
 
+# Lanzar el hilo al iniciar la app
+threading.Thread(target=sensor_loop, daemon=True).start()
+
+# -------------------------
+# Endpoints OAuth (dummy)
+# -------------------------
 @app.route("/authorize")
 def authorize():
     redirect_uri = request.args.get("redirect_uri")
@@ -31,10 +46,15 @@ def token():
         "expires_in": 3600
     })
 
+# -------------------------
+# Endpoint principal
+# -------------------------
 @app.route("/", methods=["POST"])
 def main_endpoint():
-    update_sensor()
     body = request.get_json(silent=True)
+    if not body:
+        return jsonify({"status": "ok", "message": "Función activa"}), 200
+
     intent = None
     if "inputs" in body and len(body["inputs"]) > 0:
         intent = body["inputs"][0].get("intent")
@@ -85,7 +105,6 @@ def main_endpoint():
         for cmd in commands:
             for device in cmd.get("devices", []):
                 device_id = device.get("id")
-                # Aquí podrías procesar comandos reales, por ahora simulamos SUCCESS
                 results.append({
                     "ids": [device_id],
                     "status": "SUCCESS",
@@ -96,5 +115,10 @@ def main_endpoint():
             "payload": {"commands": results}
         })
 
-    # ----------------- INTENT DESCONOCIDO -----------------
     return jsonify({"status": "error", "message": f"Intent desconocido: {intent}"}), 400
+
+# -------------------------
+# Para desarrollo local
+# -------------------------
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
