@@ -98,9 +98,3 @@ def main_endpoint():
 
     # ----------------- INTENT DESCONOCIDO -----------------
     return jsonify({"status": "error", "message": f"Intent desconocido: {intent}"}), 400
-
-# -----------------------------
-# EJECUCIÓN LOCAL OPCIONAL
-# -----------------------------
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
