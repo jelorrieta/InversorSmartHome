@@ -1,36 +1,27 @@
-import threading
-import time
+import os
 import random
-from flask import Flask, jsonify, request, redirect
+from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-# -----------------------------
-# Estado dinámico del inversor
-# -----------------------------
-SENSOR_STATE = {"power": 0, "voltage": 0}
+INVERTER_STATE = {
+    "id": "inversor_1",
+    "name": "Inversor Solar",
+    "online": True,
+    "power": 0,
+    "voltage": 0
+}
 
-# Thread que genera datos aleatorios cada 10 segundos
-def sensor_loop():
-    while True:
-        SENSOR_STATE["power"] = round(random.uniform(100, 150), 1)
-        SENSOR_STATE["voltage"] = round(random.uniform(23.5, 24.7), 1)
-        print(f"[SENSOR] Power: {SENSOR_STATE['power']} W, Voltage: {SENSOR_STATE['voltage']} V")
-        time.sleep(10)
+def update_sensor():
+    INVERTER_STATE["power"] = round(random.uniform(100, 150), 1)
+    INVERTER_STATE["voltage"] = round(random.uniform(23.5, 24.5), 1)
 
-threading.Thread(target=sensor_loop, daemon=True).start()
-
-# -----------------------------
-# Account Linking (OAuth 2.0)
-# -----------------------------
 @app.route("/authorize")
 def authorize():
     redirect_uri = request.args.get("redirect_uri")
     state = request.args.get("state")
-    if not redirect_uri:
-        return "Falta redirect_uri", 400
     code = "dummy-code"
-    return redirect(f"{redirect_uri}?code={code}&state={state}")
+    return jsonify({"redirect": f"{redirect_uri}?code={code}&state={state}"})
 
 @app.route("/token", methods=["POST"])
 def token():
@@ -40,32 +31,24 @@ def token():
         "expires_in": 3600
     })
 
-# -----------------------------
-# Endpoint principal
-# -----------------------------
 @app.route("/", methods=["POST"])
 def main_endpoint():
-    body = request.get_json(silent=True) or {}
+    update_sensor()
+    body = request.get_json(silent=True)
     intent = None
-    if "intent" in body:
-        intent = body["intent"]
-    elif "inputs" in body and len(body["inputs"]) > 0:
+    if "inputs" in body and len(body["inputs"]) > 0:
         intent = body["inputs"][0].get("intent")
 
-    print("BODY RECIBIDO:", body)
-    print("Intent detectado:", intent)
-
-    # SYNC
     if intent in ["SYNC", "action.devices.SYNC"]:
         return jsonify({
             "requestId": body.get("requestId", "req-001"),
             "payload": {
                 "devices": [
                     {
-                        "id": "inversor_1",
+                        "id": INVERTER_STATE["id"],
                         "type": "action.devices.types.SENSOR",
                         "traits": ["action.devices.traits.EnergyStorage"],
-                        "name": {"name": "Inversor Solar"},
+                        "name": {"name": INVERTER_STATE["name"]},
                         "willReportState": False,
                         "deviceInfo": {
                             "manufacturer": "MiEmpresa",
@@ -78,17 +61,16 @@ def main_endpoint():
             }
         })
 
-    # QUERY
     elif intent in ["QUERY", "action.devices.QUERY"]:
         return jsonify({
             "requestId": body.get("requestId", "req-002"),
             "payload": {
                 "devices": {
-                    "inversor_1": {
-                        "online": True,
+                    INVERTER_STATE["id"]: {
+                        "online": INVERTER_STATE["online"],
                         "status": "SUCCESS",
-                        "currentPower": SENSOR_STATE["power"],
-                        "voltage": SENSOR_STATE["voltage"]
+                        "currentPower": INVERTER_STATE["power"],
+                        "voltage": INVERTER_STATE["voltage"]
                     }
                 }
             }
