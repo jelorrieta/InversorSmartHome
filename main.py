@@ -87,17 +87,15 @@ def root():
                 "devices": [
                     {
                         "id": "inversor_1",
-                        "type": "action.devices.types.SENSOR",
+                        "type": "action.devices.types.THERMOSTAT",
                         "traits": [
-                            # EnergyStorage está documentado, aunque Google Home
-                            # a veces no muestre datos. Es lo correcto para C2C.
-                            "action.devices.traits.EnergyStorage"
+                            "action.devices.traits.TemperatureSetting"
                         ],
                         "name": {"name": "Inversor Solar"},
                         "willReportState": False,
                         "attributes": {
-                            "queryOnlyEnergyStorage": True,
-                            "energyStorageUnit": "KILOWATT_HOUR"
+                            "availableThermostatModes": ["off"],
+                            "thermostatTemperatureUnit": "C"
                         }
                     }
                 ]
@@ -110,29 +108,22 @@ def root():
     # ---------------------------------------------------------------
     elif intent == "action.devices.QUERY":
         with lock:
-            power = CACHE["power"]
-            voltage = CACHE["voltage"]
+            temp = CACHE["power"] / 10      # conversión arbitraria
+            target = CACHE["voltage"]       # conversión arbitraria
 
-        # EnergyStorage requiere "capacityRemaining"
         return jsonify({
             "requestId": body["requestId"],
             "payload": {
                 "devices": {
                     "inversor_1": {
                         "online": True,
-                        "capacityRemaining": [{
-                            "rawValue": power,
-                            "unit": "KILOWATT_HOUR"
-                        }],
-                        "capacityUntilFull": [{
-                            "rawValue": voltage,
-                            "unit": "KILOWATT_HOUR"
-                        }]
+                        "thermostatMode": "off",
+                        "thermostatTemperatureAmbient": temp,
+                        "thermostatTemperatureSetpoint": target
                     }
                 }
             }
         })
-
     # ---------------------------------------------------------------
     # INTENT: EXECUTE
     # Para comandos (aunque tu sensor no tiene comandos)
