@@ -1,24 +1,20 @@
 import os
+import random
 from flask import Flask, request, jsonify, redirect
 
 app = Flask(__name__)
 
 # -----------------------------
-# Estado del inversor simulado
+# Estado base del inversor
 # -----------------------------
 INVERTER_STATE = {
     "id": "inversor_1",
     "name": "Inversor Solar",
-    "online": True,
-    "power": 125,
-    "voltage": 24.3
+    "online": True
 }
 
-# Token de prueba
-VALID_TOKEN = "dummy-access-token"
-
 # -----------------------------
-# Endpoints de OAuth 2.0 (dummy)
+# Account Linking (OAuth 2.0)
 # -----------------------------
 @app.route("/authorize")
 def authorize():
@@ -32,38 +28,33 @@ def authorize():
 @app.route("/token", methods=["POST"])
 def token():
     return jsonify({
-        "access_token": VALID_TOKEN,
+        "access_token": "dummy-access-token",
         "token_type": "Bearer",
         "expires_in": 3600
     })
 
 # -----------------------------
-# Endpoint principal C2C
+# Endpoint principal
 # -----------------------------
-@app.route("/", methods=["POST"])
+@app.route("/", methods=["POST", "GET"])
 def main_endpoint():
-    # Verificar token
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        return jsonify({"error": "Unauthorized: Missing Bearer token"}), 401
-    token = auth_header.split(" ")[1]
-    if token != VALID_TOKEN:
-        return jsonify({"error": "Unauthorized: Invalid token"}), 401
-
     body = request.get_json(silent=True)
+    print("BODY RECIBIDO:", body)
+
     if not body:
         return jsonify({"status": "ok", "message": "Función activa"}), 200
 
-    # Detectar intent
     intent = None
     if "intent" in body:
         intent = body["intent"]
     elif "inputs" in body and len(body["inputs"]) > 0:
         intent = body["inputs"][0].get("intent")
 
+    print("Intent detectado:", intent)
+
     # SYNC
     if intent in ["SYNC", "action.devices.SYNC"]:
-        response = {
+        return jsonify({
             "requestId": body.get("requestId", "req-001"),
             "payload": {
                 "devices": [
@@ -82,11 +73,13 @@ def main_endpoint():
                     }
                 ]
             }
-        }
-        return jsonify(response)
+        })
 
     # QUERY
     elif intent in ["QUERY", "action.devices.QUERY"]:
+        # Generar datos aleatorios
+        power = round(random.uniform(100, 150), 1)     # Watts
+        voltage = round(random.uniform(23.5, 25.0), 1) # Volts
         response = {
             "requestId": body.get("requestId", "req-002"),
             "payload": {
@@ -94,8 +87,8 @@ def main_endpoint():
                     INVERTER_STATE["id"]: {
                         "online": INVERTER_STATE["online"],
                         "status": "SUCCESS",
-                        "currentPower": INVERTER_STATE["power"],
-                        "voltage": INVERTER_STATE["voltage"]
+                        "currentPower": power,
+                        "voltage": voltage
                     }
                 }
             }
@@ -115,18 +108,15 @@ def main_endpoint():
                     "status": "SUCCESS",
                     "states": INVERTER_STATE
                 })
-        response = {
+        return jsonify({
             "requestId": body.get("requestId", "req-003"),
             "payload": {"commands": results}
-        }
-        return jsonify(response)
+        })
 
-    # Intent desconocido
     return jsonify({"status": "error", "message": f"Intent desconocido: {intent}"}), 400
 
 # -----------------------------
-# Ejecución local (opcional)
+# EJECUCIÓN LOCAL
 # -----------------------------
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
