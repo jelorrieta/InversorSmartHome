@@ -39,6 +39,7 @@ def main_endpoint():
     if "inputs" in body and len(body["inputs"]) > 0:
         intent = body["inputs"][0].get("intent")
 
+    # ----------------- SYNC -----------------
     if intent in ["SYNC", "action.devices.SYNC"]:
         return jsonify({
             "requestId": body.get("requestId", "req-001"),
@@ -61,41 +62,41 @@ def main_endpoint():
             }
         })
 
+    # ----------------- QUERY -----------------
     elif intent in ["QUERY", "action.devices.QUERY"]:
+        devices = {}
+        for dev in body["inputs"][0].get("payload", {}).get("devices", []):
+            if dev["id"] == INVERTER_STATE["id"]:
+                devices[INVERTER_STATE["id"]] = {
+                    "online": INVERTER_STATE["online"],
+                    "status": "SUCCESS",
+                    "currentPower": INVERTER_STATE["power"],
+                    "voltage": INVERTER_STATE["voltage"]
+                }
         return jsonify({
             "requestId": body.get("requestId", "req-002"),
-            "payload": {
-                "devices": {
-                    INVERTER_STATE["id"]: {
-                        "online": INVERTER_STATE["online"],
-                        "status": "SUCCESS",
-                        "currentPower": INVERTER_STATE["power"],
-                        "voltage": INVERTER_STATE["voltage"]
-                    }
-                }
-            }
+            "payload": {"devices": devices}
         })
 
-    # EXECUTE
+    # ----------------- EXECUTE -----------------
     elif intent in ["EXECUTE", "action.devices.EXECUTE"]:
-        commands = body.get("commands", []) or body.get("inputs", [{}])[0].get("payload", {}).get("commands", [])
         results = []
+        commands = body["inputs"][0].get("payload", {}).get("commands", [])
         for cmd in commands:
-            devices = cmd.get("devices", [])
-            for device in devices:
+            for device in cmd.get("devices", []):
                 device_id = device.get("id")
-                # Aquí puedes simular la ejecución de comandos
+                # Aquí podrías procesar comandos reales, por ahora simulamos SUCCESS
                 results.append({
                     "ids": [device_id],
                     "status": "SUCCESS",
-                    "states": SENSOR_STATE
+                    "states": INVERTER_STATE
                 })
         return jsonify({
             "requestId": body.get("requestId", "req-003"),
             "payload": {"commands": results}
         })
 
-    # Intent desconocido
+    # ----------------- INTENT DESCONOCIDO -----------------
     return jsonify({"status": "error", "message": f"Intent desconocido: {intent}"}), 400
 
 # -----------------------------
