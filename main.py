@@ -54,7 +54,7 @@ def root():
                     {
                         "id": "inversor_1",
                         "type": "action.devices.types.SENSOR",
-                        "traits": ["action.devices.traits.SensorState"],
+                        "traits": ["action.devices.traits.EnergyStorage"],
                         "name": {"name": "Inversor Solar"},
                         "willReportState": False,
                         "attributes": {
