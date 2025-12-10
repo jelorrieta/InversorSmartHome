@@ -69,7 +69,7 @@ def main_endpoint():
                 "devices": [
                     {
                         "id": INVERTER_STATE["id"],
-                        "type": "action.devices.types.ENERGY_SENSOR",
+                        "type": "action.devices.types.SENSOR",
                         "traits": ["action.devices.traits.EnergyStorage"],
                         "name": {"name": INVERTER_STATE["name"]},
                         "willReportState": False,
