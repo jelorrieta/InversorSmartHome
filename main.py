@@ -1,5 +1,7 @@
 import os
 import random
+import time
+import threading
 from flask import Flask, request, jsonify, redirect
 
 app = Flask(__name__)
@@ -10,8 +12,21 @@ app = Flask(__name__)
 INVERTER_STATE = {
     "id": "inversor_1",
     "name": "Inversor Solar",
-    "online": True
+    "online": True,
+    "currentPower": 0,
+    "voltage": 0
 }
+
+# Función para actualizar datos aleatorios y mostrar en consola
+def sensor_loop():
+    while True:
+        INVERTER_STATE["currentPower"] = round(random.uniform(100, 150), 1)
+        INVERTER_STATE["voltage"] = round(random.uniform(23.5, 25.0), 1)
+        print(f"[SENSOR] Power: {INVERTER_STATE['currentPower']} W, Voltage: {INVERTER_STATE['voltage']} V")
+        time.sleep(10)  # cada 10 segundos
+
+# Lanzar hilo en segundo plano
+threading.Thread(target=sensor_loop, daemon=True).start()
 
 # -----------------------------
 # Account Linking (OAuth 2.0)
@@ -77,9 +92,6 @@ def main_endpoint():
 
     # QUERY
     elif intent in ["QUERY", "action.devices.QUERY"]:
-        # Generar datos aleatorios
-        power = round(random.uniform(100, 150), 1)     # Watts
-        voltage = round(random.uniform(23.5, 25.0), 1) # Volts
         response = {
             "requestId": body.get("requestId", "req-002"),
             "payload": {
@@ -87,8 +99,8 @@ def main_endpoint():
                     INVERTER_STATE["id"]: {
                         "online": INVERTER_STATE["online"],
                         "status": "SUCCESS",
-                        "currentPower": power,
-                        "voltage": voltage
+                        "currentPower": INVERTER_STATE["currentPower"],
+                        "voltage": INVERTER_STATE["voltage"]
                     }
                 }
             }
