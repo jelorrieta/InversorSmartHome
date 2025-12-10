@@ -8,7 +8,7 @@ app = Flask(__name__)
 # -------------------------------------------------------------------
 # CACHE PARA DATOS DEL SENSOR
 # -------------------------------------------------------------------
-CACHE = {"power": 0.0, "voltage": 0.0}
+CACHE = {"status": True, "voltage": 0.0}
 lock = threading.Lock()
 
 # -------------------------------------------------------------------
@@ -17,9 +17,11 @@ lock = threading.Lock()
 def update_sensor_loop():
     while True:
         with lock:
-            CACHE["power"] = round(random.uniform(50, 500), 2)
+            CACHE["status"] = True
+            if(round(random.uniform(0,1),0) == 0):
+                CACHE["status"] = False
             CACHE["voltage"] = round(random.uniform(20, 30), 2)
-        print(f"[SENSOR] Power={CACHE['power']}W  Voltage={CACHE['voltage']}V")
+        print(f"[SENSOR] Status={CACHE['status']}  Voltage={CACHE['voltage']}V")
         time.sleep(10)
 
 threading.Thread(target=update_sensor_loop, daemon=True).start()
@@ -87,15 +89,15 @@ def root():
                 "devices": [
                     {
                         "id": "inversor_1",
-                        "type": "action.devices.types.THERMOSTAT",
+                        "type": "action.devices.types.SWITCH",
                         "traits": [
-                            "action.devices.traits.TemperatureSetting"
+                            "action.devices.traits.OnOff"
                         ],
                         "name": {"name": "Inversor Solar"},
                         "willReportState": False,
                         "attributes": {
-                            "availableThermostatModes": ["off"],
-                            "thermostatTemperatureUnit": "C"
+                            "commandOnlyOnOff": True,
+                            "queryOnlyOnOff": False
                         }
                     }
                 ]
@@ -116,10 +118,7 @@ def root():
             "payload": {
                 "devices": {
                     "inversor_1": {
-                        "online": True,
-                        "thermostatMode": "off",
-                        "thermostatTemperatureAmbient": temp,
-                        "thermostatTemperatureSetpoint": target
+                        "on": True
                     }
                 }
             }
